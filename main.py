@@ -10,6 +10,7 @@ from tracker import Tracker
 if __name__ == '__main__':
     intents = discord.Intents.default()
     intents.reactions = True
+
     bot = commands.Bot(command_prefix='!', intents=intents)
 
     tracker = Tracker(max_group_size=5, loot_per_run=1)

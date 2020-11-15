@@ -1,4 +1,4 @@
-import typing, re
+import re
 
 from discord.ext import commands
 
@@ -16,13 +16,6 @@ class Group(commands.Cog):
         else:
             return
 
-    # @commands.command(name='join', help='Joins the last created group or a specific group')
-    # async def join(self, ctx, group_id: typing.Optional[int] = None):
-    #     self.tracker.start_trace()
-    #     self.tracker.join(ctx.author, group_id or self.tracker.max_group_id())
-    #
-    #     await ctx.send("```%s```" % '\n'.join(self.tracker.end_trace()))
-
     @commands.command(name='create', help='Creates a new group.')
     async def create(self, ctx):
         self.tracker.start_trace()
@@ -31,13 +24,6 @@ class Group(commands.Cog):
             self.tracker.join(ctx.author, group_id)
 
         await ctx.send("```%s```" % '\n'.join(self.tracker.end_trace()))
-
-    # @commands.command(name='leave', help='Leave your current group')
-    # async def leave(self, ctx):
-    #     self.tracker.start_trace()
-    #     self.tracker.leave(ctx.author)
-    #
-    #     await ctx.send("```%s```" % '\n'.join(self.tracker.end_trace()))
 
     @commands.command(name='disband', help='Disband your current group')
     async def disband(self, ctx):
@@ -93,21 +79,6 @@ class Group(commands.Cog):
             await ctx.send("```%s```" % '\n\n'.join(reports))
         else:
             await ctx.send("```%s```" % 'You are not part of a group.')
-
-    # @commands.command(name='history', help='Show the history of your group')
-    # async def history(self, ctx):
-    #     maybe_group = self.tracker.group_of(ctx.author)
-    #
-    #     if maybe_group:
-    #         group = self.tracker.group_map[maybe_group]
-    #         if group.history:
-    #             res = '%d runs. Winners: %s.' % (group.completed_runs, ', '.join(group.history))
-    #         else:
-    #             res = 'No history.'
-    #     else:
-    #         res = 'You are not part of a group.'
-    #
-    #     await ctx.send("```%s```" % res)
 
     @commands.command(name='start', help='Register a run as started')
     async def start_run(self, ctx):
