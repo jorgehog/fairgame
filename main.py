@@ -32,14 +32,6 @@ if __name__ == '__main__':
     async def on_ready():
         print('We have logged in as %s' % bot.user)
 
-
-    @bot.event
-    async def on_member_join(member):
-        ch = member.guild.system_channel
-        if ch is not None:
-            await ch.send('Welcome %s! Type !help to get started.' % member)
-
-
     bot.add_cog(Status(tracker))
     bot.add_cog(Group(tracker, bot))
 

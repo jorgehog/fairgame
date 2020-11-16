@@ -1,5 +1,6 @@
 import discord
 
+from config import Config
 from memberinfo import MemberInfo
 from groupinfo import GroupInfo
 
@@ -79,8 +80,8 @@ class Tracker:
         if not maybe_group:
             self.group_map[next_group_id] = GroupInfo(self.loot_per_run)
             self._log(
-                'New group %d created by %s. React to this message to join.\nComplete runs with !done and register loot with !loot' % (
-                    next_group_id, member.display_name))
+                'Group %d created by %s. React with %s to join them. !run once you\'re ready.' % (
+                    next_group_id, member.display_name, Config.join_group_emoji))
             return next_group_id
         else:
             self._log('%s is already part of group %s.' % (member.display_name, maybe_group))
@@ -126,36 +127,24 @@ class Tracker:
     def start_run(self, member: discord.Member):
         member_ref = member.id
         if self._is_leader(member_ref):
-            group_info = self.group_map[self.member_info[member_ref].group_id]
-            group_info.start_run()
-            for group_member_ref in group_info.members:
-                self.member_info[group_member_ref].start_run()
-            return True
+            group_id = self.member_info[member_ref].group_id
+            group_info = self.group_map[group_id]
+
+            group_members = [self.member_info[group_member_ref] for group_member_ref in group_info.members]
+
+            suggested_looter = max(group_members, key=lambda x: x.diff())
+
+            react_string = '/'.join(Config.index_emojis[:self.loot_per_run])
+
+            for member in group_members:
+                member.runs += 1
+
+            self._log(
+                'Group %d run started! React %s if you are looting %s.\nBased on run balance we suggest %s (balance = %d).' % (
+                    group_id, react_string, Config.loot_string, suggested_looter.display_name, suggested_looter.diff()))
 
         else:
             self._log('Only group leaders can complete runs.')
-            return False
-
-    def register_looter(self, member: discord.Member):
-        member_ref = member.id
-        maybe_group = self._group_of(member_ref)
-
-        if maybe_group:
-            group_info = self.group_map[maybe_group]
-            if group_info.has_unclaimed_loot():
-                group_info.register_looter(member.display_name)
-                self.member_info[member_ref].register_looter()
-                return True
-            else:
-                if group_info.times_looted() == 0:
-                    self._log('Group leader needs to !start before you can register as a looter.')
-                else:
-                    self._log('Already looted. !start a new run to loot more (loot per run = %d).' % self.loot_per_run)
-                return False
-
-        else:
-            self._log('Cannot register loot outside of groups.')
-            return False
 
     def member_status(self, member: discord.Member):
         member_ref = member.id
@@ -169,3 +158,11 @@ class Tracker:
 
     def status(self):
         return [info.report() for info in sorted(self.member_info.values(), key=lambda info: info.display_name)]
+
+    def register_group_loot_message(self, group_id, message_id):
+        self.group_map[group_id].loot_message_id = message_id
+        self.group_map[group_id].looters = 0
+
+    def register_group_invite_message(self, group_id, message_id):
+        self.group_map[group_id].invite_message_id = message_id
+        self.group_map[group_id].looters = 0

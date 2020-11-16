@@ -1,5 +1,6 @@
 import re
 
+from config import Config
 from discord.ext import commands
 
 
@@ -9,8 +10,8 @@ class Group(commands.Cog):
         self.bot = bot
 
     @staticmethod
-    def is_group_message(msg):
-        res = re.findall('New group (\d+) created', msg)
+    def is_group_message(msg, suffix):
+        res = re.findall('Group (\d+)%s' % suffix, msg)
         if res:
             return int(res[0])
         else:
@@ -20,10 +21,11 @@ class Group(commands.Cog):
     async def create(self, ctx):
         self.tracker.start_trace()
         group_id = self.tracker.create(ctx.author)
+        res = self.tracker.end_trace()
         if group_id:
             self.tracker.join(ctx.author, group_id)
 
-        await ctx.send("```%s```" % '\n'.join(self.tracker.end_trace()))
+        await ctx.send("```%s```" % '\n'.join(res))
 
     @commands.command(name='disband', help='Disband your current group')
     async def disband(self, ctx):
@@ -32,21 +34,12 @@ class Group(commands.Cog):
 
         await ctx.send("```%s```" % '\n'.join(self.tracker.end_trace()))
 
-    @commands.Cog.listener()
-    async def on_reaction_add(self, reaction, user):
-        if user.name != 'fairgame':
-            res = self.is_group_message(reaction.message.content)
-            if res:
-                self.tracker.join(user, res)
+    @commands.command(name='run', help='Start a new loot run')
+    async def start_run(self, ctx):
+        self.tracker.start_trace()
+        self.tracker.start_run(ctx.author)
 
-    @commands.Cog.listener()
-    async def on_raw_reaction_remove(self, event):
-        self.tracker._leave(event.user_id)
-
-    @commands.Cog.listener()
-    async def on_message(self, message):
-        if message.author.name == 'fairgame' and self.is_group_message(message.content):
-            await message.add_reaction('\U0001F44D')
+        await ctx.send("```%s```" % '\n'.join(self.tracker.end_trace()))
 
     @commands.command(name='plan', help='Calculate the most optimal plan for your group')
     async def make_plan(self, ctx, _count: int = 5):
@@ -65,8 +58,8 @@ class Group(commands.Cog):
                 before = looter.report()
 
                 for member in copied:
-                    member.start_run()
-                looter.register_looter()
+                    member.runs += 1
+                looter.times_looted += 1
 
                 copied = sorted(copied, key=lambda k: k.diff())
 
@@ -80,20 +73,58 @@ class Group(commands.Cog):
         else:
             await ctx.send("```%s```" % 'You are not part of a group.')
 
-    @commands.command(name='start', help='Register a run as started')
-    async def start_run(self, ctx):
-        self.tracker.start_trace()
-        if self.tracker.start_run(ctx.author):
-            self.tracker.end_trace()
-            await self.bot.get_cog('Status').group_status(ctx)
-        else:
-            await ctx.send("```%s```" % '\n'.join(self.tracker.end_trace()))
+    @commands.Cog.listener()
+    async def on_reaction_add(self, reaction, user):
+        if user.name != 'fairgame':
+            group_message = self.is_group_message(reaction.message.content, ' created')
+            if group_message and reaction.emoji == Config.join_group_emoji:
+                self.tracker.join(user, group_message)
+            else:
+                group_id = self.is_group_message(reaction.message.content, ' run started!')
+                if group_id and reaction.emoji in Config.index_emojis:
+                    index = Config.index_emojis.index(reaction.emoji)
 
-    @commands.command(name='loot', help='Register yourself as the chosen looter')
-    async def register_looter(self, ctx):
-        self.tracker.start_trace()
-        if self.tracker.register_looter(ctx.author):
-            self.tracker.end_trace()
-            await self.bot.get_cog('Status').group_status(ctx)
-        else:
-            await ctx.send("```%s```" % '\n'.join(self.tracker.end_trace()))
+                    if index < self.tracker.loot_per_run:
+                        message_id = reaction.message.id
+
+                        for group in self.tracker.group_map.values():
+                            if group.loot_message_id == message_id and user.id in group.members:
+                                member = self.tracker.member_info[user.id]
+
+                                group.looters += 1
+                                member.times_looted += 1
+
+    @commands.Cog.listener()
+    async def on_raw_reaction_remove(self, event):
+        if event.emoji.name == Config.join_group_emoji:
+            for group in self.tracker.group_map.values():
+                if group.invite_message_id == event.message_id:
+                    self.tracker._leave(event.user_id)
+                    break
+
+        elif event.emoji.name in Config.index_emojis:
+            index = Config.index_emojis.index(event.emoji.name)
+
+            if index < self.tracker.loot_per_run:
+                for group in self.tracker.group_map.values():
+                    if group.loot_message_id == event.message_id and event.user_id in group.members:
+                        member = self.tracker.member_info[event.user_id]
+
+                        group.looters -= 1
+                        member.times_looted -= 1
+
+    @commands.Cog.listener()
+    async def on_message(self, message):
+        if message.author.name == Config.bot_user:
+            group_id = self.is_group_message(message.content, ' created')
+            if group_id:
+                self.tracker.register_group_invite_message(group_id, message.id)
+                await message.add_reaction(Config.join_group_emoji)
+            else:
+                group_id = self.is_group_message(message.content, ' run started!')
+                if group_id:
+                    self.tracker.register_group_loot_message(group_id, message.id)
+
+                    n = self.tracker.loot_per_run
+                    for emoji in Config.index_emojis[:n]:
+                        await message.add_reaction(emoji)
