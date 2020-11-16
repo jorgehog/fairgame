@@ -3,8 +3,6 @@ class GroupInfo:
         self.members = []
         self.loot_per_run = loot_per_run
 
-        self.looters = 0
-
         self.invite_message_id = None
         self.loot_message_id = None
 

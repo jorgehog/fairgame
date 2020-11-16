@@ -6,11 +6,11 @@ from groupinfo import GroupInfo
 
 
 class Tracker:
-    def __init__(self, max_group_size: int, loot_per_run: int):
+    def __init__(self, member_info, max_group_size: int, loot_per_run: int):
         self.max_group_size = max_group_size
         self.loot_per_run = loot_per_run
 
-        self.member_info = {}
+        self.member_info = member_info
         self.group_map = {}
         self._logger = None
 
@@ -51,7 +51,7 @@ class Tracker:
 
     def _get_or_create(self, member_ref: int, display_name: str):
         if member_ref not in self.member_info:
-            self.member_info[member_ref] = MemberInfo(display_name, self.max_group_size)
+            self.member_info[member_ref] = MemberInfo(display_name)
             self._log('New entry for %s created.' % display_name)
 
         return self.member_info[member_ref]
@@ -118,7 +118,8 @@ class Tracker:
     def disband_group(self, member: discord.Member):
         member_ref = member.id
         if self._is_leader(member_ref):
-            for group_member_ref in self.group_map[self.member_info[member_ref].group_id].members:
+            to_leave = [ref for ref in self.group_map[self.member_info[member_ref].group_id].members]
+            for group_member_ref in to_leave:
                 self._leave(group_member_ref)
 
         else:
@@ -132,16 +133,14 @@ class Tracker:
 
             group_members = [self.member_info[group_member_ref] for group_member_ref in group_info.members]
 
-            suggested_looter = max(group_members, key=lambda x: x.diff())
+            suggested_looter = max(group_members, key=lambda x: x.balance)
 
             react_string = '/'.join(Config.index_emojis[:self.loot_per_run])
 
-            for member in group_members:
-                member.runs += 1
-
             self._log(
-                'Group %d run started! React %s if you are looting %s.\nBased on run balance we suggest %s (balance = %d).' % (
-                    group_id, react_string, Config.loot_string, suggested_looter.display_name, suggested_looter.diff()))
+                'Group %d run started! React %s if you are looting %s.\nBased on point balance we suggest %s (points = %d).' % (
+                    group_id, react_string, Config.loot_string, suggested_looter.display_name,
+                    suggested_looter.balance))
 
         else:
             self._log('Only group leaders can complete runs.')
@@ -149,20 +148,19 @@ class Tracker:
     def member_status(self, member: discord.Member):
         member_ref = member.id
         if member_ref in self.member_info:
-            return self.member_info[member_ref].report()
+            self.member_info[member_ref].display_name = member.display_name  # Update member name
+            return self.member_info[member_ref].report_verbose()
         else:
             return
 
     def group_status(self, group_id: int):
-        return [info.report() for info in self.stats_for_group(group_id)]
+        return [info.report_verbose() for info in self.stats_for_group(group_id)]
 
     def status(self):
-        return [info.report() for info in sorted(self.member_info.values(), key=lambda info: info.display_name)]
+        return [info.report_verbose() for info in sorted(self.member_info.values(), key=lambda info: info.display_name)]
 
     def register_group_loot_message(self, group_id, message_id):
         self.group_map[group_id].loot_message_id = message_id
-        self.group_map[group_id].looters = 0
 
     def register_group_invite_message(self, group_id, message_id):
         self.group_map[group_id].invite_message_id = message_id
-        self.group_map[group_id].looters = 0

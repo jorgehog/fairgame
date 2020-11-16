@@ -49,29 +49,29 @@ class Group(commands.Cog):
         member_stats = self.tracker.stats_for_group(maybe_group) if maybe_group else None
 
         if member_stats:
-            copied = sorted([m.copy() for m in member_stats], key=lambda k: k.diff())
-            reports = []
+            copied = sorted([m.copy() for m in member_stats], key=lambda k: k.balance)
+            reports = ['Current status: %s' % " | ".join([c.report() for c in copied])]
 
             run = 1
             while run <= count:
                 looter = copied[-1]
-                before = looter.report()
+                before = looter.report_verbose()
 
-                for member in copied:
-                    member.runs += 1
-                looter.times_looted += 1
+                for member in copied[:-1]:
+                    member.balance += 1
+                    looter.balance -= 1
 
-                copied = sorted(copied, key=lambda k: k.diff())
+                copied = sorted(copied, key=lambda k: k.balance)
 
-                after = " | ".join(["%s (%d)" % (c.display_name, c.diff()) for c in copied])
+                after = " | ".join([c.report() for c in copied])
 
-                reports.append("Run #%d:\nBefore: %s\nAfter:  %s" % (run, before, after))
+                reports.append('>Looter %d:      %s\nUpdated status: %s' % (run, before, after))
 
                 run += 1
 
             await ctx.send("```%s```" % '\n\n'.join(reports))
         else:
-            await ctx.send("```%s```" % 'You are not part of a group.')
+            await ctx.send("```%s```" % Config.no_group_reply)
 
     @commands.Cog.listener()
     async def on_reaction_add(self, reaction, user):
@@ -89,10 +89,14 @@ class Group(commands.Cog):
 
                         for group in self.tracker.group_map.values():
                             if group.loot_message_id == message_id and user.id in group.members:
-                                member = self.tracker.member_info[user.id]
+                                looter = self.tracker.member_info[user.id]
 
-                                group.looters += 1
-                                member.times_looted += 1
+                                for member_id in group.members:
+                                    if member_id != user.id:
+                                        booster = self.tracker.member_info[member_id]
+
+                                        booster.balance -= 1
+                                        looter.balance += 1
 
     @commands.Cog.listener()
     async def on_raw_reaction_remove(self, event):
@@ -108,10 +112,14 @@ class Group(commands.Cog):
             if index < self.tracker.loot_per_run:
                 for group in self.tracker.group_map.values():
                     if group.loot_message_id == event.message_id and event.user_id in group.members:
-                        member = self.tracker.member_info[event.user_id]
+                        looter = self.tracker.member_info[event.user_id]
 
-                        group.looters -= 1
-                        member.times_looted -= 1
+                        for member_id in group.members:
+                            if member_id != event.user_id:
+                                booster = self.tracker.member_info[member_id]
+
+                                booster.balance -= 1
+                                looter.balance += 1
 
     @commands.Cog.listener()
     async def on_message(self, message):
