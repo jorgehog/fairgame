@@ -34,10 +34,10 @@ class Group(commands.Cog):
 
         await ctx.send("```%s```" % '\n'.join(self.tracker.end_trace()))
 
-    @commands.command(name='run', help='Start a new loot run')
-    async def start_run(self, ctx):
+    @commands.command(name='done', help='Register a run as complete.')
+    async def complete_run(self, ctx):
         self.tracker.start_trace()
-        self.tracker.start_run(ctx.author)
+        self.tracker.complete_run(ctx.author)
 
         await ctx.send("```%s```" % '\n'.join(self.tracker.end_trace()))
 
@@ -80,7 +80,7 @@ class Group(commands.Cog):
             if group_message and reaction.emoji == Config.join_group_emoji:
                 self.tracker.join(user, group_message)
             else:
-                group_id = self.is_group_message(reaction.message.content, ' run started!')
+                group_id = self.is_group_message(reaction.message.content, ' run completed!')
                 if group_id and reaction.emoji in Config.index_emojis:
                     index = Config.index_emojis.index(reaction.emoji)
 
@@ -129,7 +129,7 @@ class Group(commands.Cog):
                 self.tracker.register_group_invite_message(group_id, message.id)
                 await message.add_reaction(Config.join_group_emoji)
             else:
-                group_id = self.is_group_message(message.content, ' run started!')
+                group_id = self.is_group_message(message.content, ' run completed!')
                 if group_id:
                     self.tracker.register_group_loot_message(group_id, message.id)
 

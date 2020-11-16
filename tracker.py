@@ -72,7 +72,7 @@ class Tracker:
                 self._log('Group %d does not exist.' % group_id)
 
         else:
-            self._log('%s is already part of group %s.' % (member.display_name, info.group_id))
+            self._log(Config.already_grouped_string % info.group_id)
 
     def create(self, member: discord.Member):
         next_group_id = self.max_group_id() + 1
@@ -80,11 +80,11 @@ class Tracker:
         if not maybe_group:
             self.group_map[next_group_id] = GroupInfo(self.loot_per_run)
             self._log(
-                'Group %d created by %s. React with %s to join them. !run once you\'re ready.' % (
-                    next_group_id, member.display_name, Config.join_group_emoji))
+                'Group %d created by %s. React with %s to join them.\n%s' % (
+                    next_group_id, member.display_name, Config.join_group_emoji, Config.help_string))
             return next_group_id
         else:
-            self._log('%s is already part of group %s.' % (member.display_name, maybe_group))
+            self._log(Config.already_grouped_string % maybe_group)
             return
 
     def _is_leader(self, member_ref):
@@ -125,22 +125,14 @@ class Tracker:
         else:
             self._log('Only group leaders can disband groups.')
 
-    def start_run(self, member: discord.Member):
+    def complete_run(self, member: discord.Member):
         member_ref = member.id
         if self._is_leader(member_ref):
             group_id = self.member_info[member_ref].group_id
-            group_info = self.group_map[group_id]
-
-            group_members = [self.member_info[group_member_ref] for group_member_ref in group_info.members]
-
-            suggested_looter = max(group_members, key=lambda x: x.balance)
-
             react_string = '/'.join(Config.index_emojis[:self.loot_per_run])
 
             self._log(
-                'Group %d run started! React %s if you are looting %s.\nBased on point balance we suggest %s (points = %d).' % (
-                    group_id, react_string, Config.loot_string, suggested_looter.display_name,
-                    suggested_looter.balance))
+                'Group %d run completed! React %s if you looted %s.' % (group_id, react_string, Config.loot_string))
 
         else:
             self._log('Only group leaders can complete runs.')
